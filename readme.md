@@ -7,7 +7,7 @@ All the dependencies of the application are specified in the requirements.txt of
 ```bash
 pip install -r requirements.txt
 ```
-The `config.py` specified the configurations required for the application. Since the parsed data is stored on the local filesystem, it's imperative that we set `base_path` to some place in our system where we'd like those files.
+The `config.py` specified the configurations required for the application. Since the parsed data is stored on the local filesystem, it's imperative that we set `base_path` to some place in our system where we'd like to have those files.
 ```python
 base_path:str = # set to some place in the local filesystem
 ```
@@ -15,7 +15,7 @@ Run the application by the below:
 ```bash
 fastapi dev main.py
 ```
-Once the application use the specification to send requests to it.
+Once the application is up, use the specification to send requests to it.
 ### Specifications
 Specifications can be found [here](http://127.0.0.1:8000/docs) locally.
 
@@ -23,8 +23,8 @@ Specifications can be found [here](http://127.0.0.1:8000/docs) locally.
 A sample request to test the application is given below:
 ```json
 {
-    "pages":1,
-    "url":"https://dentalstall.com/shop/1"
+    "pages":3,
+    "url":"https://dentalstall.com/shop/page/"
 }
 ```
 ### Token Header

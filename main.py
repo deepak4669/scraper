@@ -9,6 +9,7 @@ import re
 import time
 from config import settings
 
+
 class ScrapeRequest(BaseModel):
     """The request contract for the scraping request.
 
@@ -16,12 +17,13 @@ class ScrapeRequest(BaseModel):
         pages: An integer indicating the depth of the scraping.
         url: A String which is to be used as the url for the scraping.
     """
-    pages:int
-    url:str
+
+    pages: int
+    url: str
+
 
 class Repository:
-    """An abstract class providing general methods for persisting data.
-    """
+    """An abstract class providing general methods for persisting data."""
 
     def save_obj(self, obj):
         """Saves the object on the specified system.
@@ -39,6 +41,7 @@ class Repository:
         """
         pass
 
+
 class FileSystemRepository(Repository):
     """File system backed repository
 
@@ -48,7 +51,7 @@ class FileSystemRepository(Repository):
 
     base_path: str
 
-    def __init__(self, base_path:str) -> None:
+    def __init__(self, base_path: str) -> None:
         self.base_path = base_path
         super().__init__()
 
@@ -58,21 +61,21 @@ class FileSystemRepository(Repository):
         Args:
             obj (any): An object which needs to be saved.
         """
-        path = os.path.join(self.base_path, obj['product_title']+".json")
+        path = os.path.join(self.base_path, obj["product_title"] + ".json")
         obj["path_to_image"] = self.image_path(obj["product_title"])
-        with open(path, 'w') as jsonfile:
+        with open(path, "w") as jsonfile:
             json.dump(obj, jsonfile)
-    
+
     def save_image(self, img):
         """Saves the image specified to the filesystem.
 
         Args:
             img (any): An image object which needs to be saved.
         """
-        with open(self.image_path(img['title']), 'wb') as f:
-            f.write(img['content'])
-    
-    def image_path(self, title:str):
+        with open(self.image_path(img["title"]), "wb") as f:
+            f.write(img["content"])
+
+    def image_path(self, title: str):
         """Computes the image path for the product being saved.
 
         Args:
@@ -81,7 +84,8 @@ class FileSystemRepository(Repository):
         Returns:
             str: The path of the file system where the image object is saved.
         """
-        return os.path.join(self.base_path, title+".jpg")
+        return os.path.join(self.base_path, title + ".jpg")
+
 
 class ProductGateway:
     """Gateway to retrieve product information.
@@ -94,10 +98,10 @@ class ProductGateway:
     retry_count: int
     succ_delay: int
 
-    def __init__(self, retry_count: int, succ_delay:int) -> None:
+    def __init__(self, retry_count: int, succ_delay: int) -> None:
         self.retry_count = retry_count
         self.succ_delay = succ_delay
-    
+
     def retrieve(self, url):
         """Retrieves the content on the url.
 
@@ -109,7 +113,7 @@ class ProductGateway:
         """
         response = self.get_response(url)
         return response.content
-    
+
     def get_response(self, url):
         """Gets the response from the url specified
 
@@ -122,15 +126,17 @@ class ProductGateway:
         current_count = 0
         response = None
 
-        while current_count<=self.retry_count and (response==None or response.status_code!=requests.codes.ok):
-            if response!=None:
+        while current_count <= self.retry_count and (
+            response == None or response.status_code != requests.codes.ok
+        ):
+            if response != None:
                 time.sleep(self.succ_delay)
             response = requests.get(url)
         return response
-    
+
+
 class NotificationService:
-    """An abstract notification service
-    """
+    """An abstract notification service"""
 
     def notify(self, message: str):
         """Notifies with message passed.
@@ -140,17 +146,18 @@ class NotificationService:
         """
         pass
 
-class SimpleConsoleNotificationService(NotificationService):
-    """Console notification service.
-    """
 
-    def notify(self, message:str):
+class SimpleConsoleNotificationService(NotificationService):
+    """Console notification service."""
+
+    def notify(self, message: str):
         """Notifies by printing the message on the console
 
         Args:
-            message (str): The message which is printed on the console 
+            message (str): The message which is printed on the console
         """
         print(message)
+
 
 class CacheService:
     """A simple cache service
@@ -158,12 +165,13 @@ class CacheService:
     Attributes:
         cache: A symbol table to keep track of the key value pairs
     """
-    cache:dict
+
+    cache: dict
 
     def __init__(self) -> None:
         self.cache = {}
 
-    def put(self, key:str, val):
+    def put(self, key: str, val):
         """Puts the key and value in the dictionary.
 
         Args:
@@ -171,8 +179,8 @@ class CacheService:
             val (any): An object value corresponding to the key.
         """
         self.cache[key] = val
-    
-    def contains(self, key:str):
+
+    def contains(self, key: str):
         """Checks whether a particular key exists in the cache or not.
 
         Args:
@@ -182,8 +190,8 @@ class CacheService:
             bool: Indicating whether the key do exists or not.
         """
         return key in self.cache
-    
-    def get(self, key:str):
+
+    def get(self, key: str):
         """Gets the value associated with the key.
 
         Args:
@@ -193,15 +201,15 @@ class CacheService:
             value (any): The value associated with the key.
         """
         return self.cache[key]
-    
+
+
 class ProductCacheService(CacheService):
-    """Product Cache Service.
-    """
+    """Product Cache Service."""
 
     def __init__(self) -> None:
         super().__init__()
 
-    def is_val_diff(self, key:str, val):
+    def is_val_diff(self, key: str, val):
         """Checks whether the given val is different with current value associated with the key.
 
         Args:
@@ -211,7 +219,8 @@ class ProductCacheService(CacheService):
         Returns:
             bool: Indicates whether the value differs or not.
         """
-        return (not self.contains(key)) or self.get(key)!=val
+        return (not self.contains(key)) or self.get(key) != val
+
 
 class ScrapeService:
     """Scrapes the Product Information.
@@ -228,7 +237,13 @@ class ScrapeService:
     notification_service: NotificationService
     cache_service: CacheService
 
-    def __init__(self, repository: Repository, gateway: ProductGateway, notification_service: NotificationService, cache_service: CacheService) -> None:
+    def __init__(
+        self,
+        repository: Repository,
+        gateway: ProductGateway,
+        notification_service: NotificationService,
+        cache_service: CacheService,
+    ) -> None:
         self.repository = repository
         self.gateway = gateway
         self.notification_service = notification_service
@@ -249,10 +264,14 @@ class ScrapeService:
         products = []
         product_images = []
 
-        for page_num in range(1, num_pages+1):
+        for page_num in range(1, num_pages + 1):
             current_url = urllib.parse.urljoin(url, str(page_num))
+            print(current_url)
             current_products_response = self.gateway.retrieve(current_url)
-            current_products, current_product_images = self.process_products(current_products_response)
+            current_products, current_product_images = self.process_products(
+                current_products_response
+            )
+            print(len(current_products))
             products.extend(current_products)
             product_images.extend(current_product_images)
 
@@ -265,9 +284,11 @@ class ScrapeService:
             self.repository.save_image(image)
 
         # Notifying for the update
-        self.notification_service.notify("Number of products updated: "+str(len(products)))
+        self.notification_service.notify(
+            "Number of products updated: " + str(len(products))
+        )
         return len(products)
-    
+
     def process_products(self, products_response):
         """Processes the products on a particular page.
 
@@ -287,32 +308,38 @@ class ScrapeService:
         product_images = []
 
         for product in product_list:
-            if type(product)==Tag:
+            if type(product) == Tag:
                 product_image_detail = product.find_all("img")[1]
                 product_price_detail = 0.0
                 if product.find("bdi") != None:
                     product_price_detail = float(list(product.find("bdi").children)[1])
                 # Name
-                current_product_name = self.remove_special_chars(product_image_detail.get("title"))
+                current_product_name = self.remove_special_chars(
+                    product_image_detail.get("title")
+                )
                 current_product_price = product_price_detail
 
-                if not self.cache_service.is_val_diff(current_product_name, current_product_price):
+                if not self.cache_service.is_val_diff(
+                    current_product_name, current_product_price
+                ):
                     continue
 
                 current_product = {}
-                current_product['product_title'] = self.remove_special_chars(product_image_detail.get("title"))
-                current_product['product_price'] = product_price_detail
+                current_product["product_title"] = self.remove_special_chars(
+                    product_image_detail.get("title")
+                )
+                current_product["product_price"] = product_price_detail
 
                 image_url = product_image_detail.get("src")
                 current_product_image = {}
-                current_product_image['title'] = current_product['product_title']
-                current_product_image['content'] = self.gateway.retrieve(image_url)
+                current_product_image["title"] = current_product["product_title"]
+                current_product_image["content"] = self.gateway.retrieve(image_url)
 
                 products.append(current_product)
                 product_images.append(current_product_image)
 
                 self.cache_service.put(current_product_name, current_product_price)
-        
+
         return (products, product_images)
 
     def remove_special_chars(self, text):
@@ -324,8 +351,9 @@ class ScrapeService:
         Returns:
             str: String without the special characters.
         """
-        regex = r"[^\w\s_]"  
+        regex = r"[^\w\s_]"
         return re.sub(regex, "", text)
+
 
 # Initializing various components
 
@@ -338,11 +366,14 @@ notification_service = SimpleConsoleNotificationService()
 # The product cache
 product_cache = ProductCacheService()
 # The scraping service (All components DIed into it)
-scrape_service = ScrapeService(file_system_repository, product_gateway, notification_service, product_cache)
+scrape_service = ScrapeService(
+    file_system_repository, product_gateway, notification_service, product_cache
+)
 # The token cache
 token_cache = CacheService()
-    
+
 app = FastAPI()
+
 
 @app.post("/scrape/")
 async def scrape(scrape_request: ScrapeRequest, token: str = Header(default=None)):
@@ -360,11 +391,12 @@ async def scrape(scrape_request: ScrapeRequest, token: str = Header(default=None
     """
     if not validate_token(token):
         raise HTTPException(status_code=401, detail="Unauthorized")
-    
-    product_updates = scrape_service.scrape(scrape_request=scrape_request)
-    return "{product_updates:"+str(product_updates)+"}"
 
-def validate_token(token:str):
+    product_updates = scrape_service.scrape(scrape_request=scrape_request)
+    return "{product_updates:" + str(product_updates) + "}"
+
+
+def validate_token(token: str):
     """Validates the passed against the valid tokens.
 
     Args:
@@ -373,15 +405,11 @@ def validate_token(token:str):
     Returns:
         bool: Indicating whether the token passed is valid or not.
     """
-    return token!=None and token_cache.contains(token)
+    return token != None and token_cache.contains(token)
 
 
 @app.on_event("startup")
 async def startup():
-    """Initializes the token cache for all the single digit values.
-    """
+    """Initializes the token cache for all the single digit values."""
     for num in range(10):
-        token_cache.put(str(num), "User"+str(num))
-
-
-   
+        token_cache.put(str(num), "User" + str(num))
