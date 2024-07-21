@@ -6,6 +6,7 @@ import os
 import json
 import urllib.parse
 import re
+import time
 
 
 class ScrapeRequest(BaseModel):
@@ -35,9 +36,11 @@ class FileSystemRepository(Repository):
 class ProductGateway:
 
     retry_count: int
+    succ_delay: int
 
-    def __init__(self, retry_count: int) -> None:
+    def __init__(self, retry_count: int, succ_delay:int) -> None:
         self.retry_count = retry_count
+        self.succ_delay = succ_delay
     
     def retrieve(self, url):
         response = self.get_response(url)
@@ -49,6 +52,8 @@ class ProductGateway:
         response = None
 
         while current_count<=self.retry_count and (response==None or response.status_code!=requests.codes.ok):
+            if response!=None:
+                time.sleep(self.succ_delay)
             response = requests.get(url)
         return response
     
@@ -136,7 +141,7 @@ class ScrapeService:
         return re.sub(regex, "", text)
 
 file_system_repository = FileSystemRepository()
-product_gateway = ProductGateway(3)
+product_gateway = ProductGateway(3, 3)
 notification_service = SimpleConsoleNotificationService()
 scrape_service = ScrapeService(file_system_repository, product_gateway, notification_service)
     
