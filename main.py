@@ -7,6 +7,7 @@ import json
 import urllib.parse
 import re
 import time
+from config import settings
 
 class ScrapeRequest(BaseModel):
     pages:int
@@ -185,16 +186,14 @@ class ScrapeService:
         regex = r"[^\w\s_]"  
         return re.sub(regex, "", text)
 
-file_system_repository = FileSystemRepository('/Users/dpkgyl/scrape_data')
-product_gateway = ProductGateway(3, 3)
+file_system_repository = FileSystemRepository(settings.base_path)
+product_gateway = ProductGateway(settings.retry_count, settings.retry_delay)
 notification_service = SimpleConsoleNotificationService()
 product_cache = ProductCacheService()
 scrape_service = ScrapeService(file_system_repository, product_gateway, notification_service, product_cache)
 token_cache = CacheService()
     
 app = FastAPI()
-
-REPOSITORY_PATH = '/Users/dpkgyl/scrape_data'
 
 @app.post("/scrape/")
 async def scrape(scrape_request: ScrapeRequest, token: str = Header(default=None)):
