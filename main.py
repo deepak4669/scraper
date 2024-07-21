@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 import requests
 from bs4 import BeautifulSoup, Tag
 from pydantic import BaseModel
@@ -8,7 +8,6 @@ import urllib.parse
 import re
 import time
 
-
 class ScrapeRequest(BaseModel):
     pages:int
     url:str
@@ -16,7 +15,7 @@ class ScrapeRequest(BaseModel):
 
 class Repository:
 
-    def save_json(self, entity, path):
+    def save_obj(self, entity, path):
         pass
 
     def save_image(self, img, path):
@@ -24,14 +23,24 @@ class Repository:
 
 class FileSystemRepository(Repository):
 
-    def save_json(self, entity, path):
+    base_path: str
+
+    def __init__(self, base_path:str) -> None:
+        self.base_path = base_path
+        super().__init__()
+
+    def save_obj(self, obj):
+        path = os.path.join(self.base_path, obj['product_title']+".json")
+        obj["path_to_image"] = self.image_path(obj["product_title"])
         with open(path, 'w') as jsonfile:
-            json.dump(entity, jsonfile)
+            json.dump(obj, jsonfile)
     
+    def save_image(self, img):
+        with open(self.image_path(img['title']), 'wb') as f:
+            f.write(img['content'])
     
-    def save_image(self, img, path):
-        with open(path, 'wb') as f:
-            f.write(img)
+    def image_path(self, title:str):
+        return os.path.join(self.base_path, title+".jpg")
 
 class ProductGateway:
 
@@ -68,16 +77,45 @@ class SimpleConsoleNotificationService(NotificationService):
         print(message)
 
 
+class CacheService:
+    cache:dict
+
+    def __init__(self) -> None:
+        self.cache = {}
+
+    def put(self, key:str, val):
+        self.cache[key] = val
+    
+    def contains(self, key:str):
+        return key in self.cache
+    
+    def get(self, key:str):
+        return self.cache[key]
+    
+
+    
+class ProductCacheService(CacheService):
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def is_val_diff(self, key:str, val):
+        return (not self.contains(key)) or self.get(key)!=val
+
+
+
 class ScrapeService:
 
     repository: Repository
     gateway: ProductGateway
     notification_service: NotificationService
+    cache_service: CacheService
 
-    def __init__(self, repository: Repository, gateway: ProductGateway, notification_service: NotificationService) -> None:
+    def __init__(self, repository: Repository, gateway: ProductGateway, notification_service: NotificationService, cache_service: CacheService) -> None:
         self.repository = repository
         self.gateway = gateway
         self.notification_service = notification_service
+        self.cache_service = cache_service
 
     def scrape(self, scrape_request: ScrapeRequest):
         num_pages = scrape_request.pages
@@ -94,12 +132,12 @@ class ScrapeService:
             product_images.extend(current_product_images)
 
         # Save the Products
-        products_path = os.path.join(REPOSITORY_PATH, "products.json")
-        self.repository.save_json(products, path=products_path)
+        for product in products:
+            self.repository.save_obj(product)
 
         # Save the Images
         for image in product_images:
-            self.repository.save_image(image['content'], image['path'])
+            self.repository.save_image(image)
 
         # Notifying for the update
         self.notification_service.notify("Number of products updated: "+str(len(products)))
@@ -121,18 +159,25 @@ class ScrapeService:
                 if product.find("bdi") != None:
                     product_price_detail = float(list(product.find("bdi").children)[1])
                 # Name
+                current_product_name = self.remove_special_chars(product_image_detail.get("title"))
+                current_product_price = product_price_detail
+
+                if not self.cache_service.is_val_diff(current_product_name, current_product_price):
+                    continue
+
                 current_product = {}
-                current_product['product_title'] = product_image_detail.get("title")
+                current_product['product_title'] = self.remove_special_chars(product_image_detail.get("title"))
                 current_product['product_price'] = product_price_detail
-                current_product['path_to_image'] = os.path.join(REPOSITORY_PATH, self.remove_special_chars(current_product['product_title']))
 
                 image_url = product_image_detail.get("src")
                 current_product_image = {}
-                current_product_image['path'] = current_product['path_to_image']
+                current_product_image['title'] = current_product['product_title']
                 current_product_image['content'] = self.gateway.retrieve(image_url)
 
                 products.append(current_product)
                 product_images.append(current_product_image)
+
+                self.cache_service.put(current_product_name, current_product_price)
         
         return (products, product_images)
 
@@ -140,20 +185,32 @@ class ScrapeService:
         regex = r"[^\w\s_]"  
         return re.sub(regex, "", text)
 
-file_system_repository = FileSystemRepository()
+file_system_repository = FileSystemRepository('/Users/dpkgyl/scrape_data')
 product_gateway = ProductGateway(3, 3)
 notification_service = SimpleConsoleNotificationService()
-scrape_service = ScrapeService(file_system_repository, product_gateway, notification_service)
+product_cache = ProductCacheService()
+scrape_service = ScrapeService(file_system_repository, product_gateway, notification_service, product_cache)
+token_cache = CacheService()
     
 app = FastAPI()
 
 REPOSITORY_PATH = '/Users/dpkgyl/scrape_data'
 
 @app.post("/scrape/")
-async def scrape(scrape_request: ScrapeRequest):
+async def scrape(scrape_request: ScrapeRequest, token: str = Header(default=None)):
+    if not validate_token(token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
     
     scrape_service.scrape(scrape_request=scrape_request)
 
+def validate_token(token:str):
+    return token!=None and token_cache.contains(token)
+
+
+@app.on_event("startup")
+async def startup():
+    for num in range(10):
+        token_cache.put(str(num), "User"+str(num))
 
 
    
